@@ -1,0 +1,969 @@
+<style>
+  /* Base (from original) */
+  body { margin: 0; overflow: hidden; background-color: #111827; color: #fff;
+         font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+  canvas { display: block; }
+  #simulationCanvas { background: radial-gradient(circle, #1f2937, #111827); }
+  .info-panel { user-select: none; }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; background: transparent; }
+  input[type=range]:focus { outline: none; }
+  input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: #4b5563; border-radius: 3px; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%; background: #60a5fa; cursor: pointer; margin-top: -6px; }
+  input[type=range]::-moz-range-track { width: 100%; height: 6px; cursor: pointer; background: #4b5563; border-radius: 3px; }
+  input[type=range]::-moz-range-thumb { height: 18px; width: 18px; border: none; border-radius: 50%; background: #60a5fa; cursor: pointer; }
+  #ui-content { transition: max-height 0.5s ease-in-out, opacity 0.5s ease-in-out, margin-top 0.5s ease-in-out; max-height: 640px; overflow: hidden; }
+  #ui-content.collapsed { max-height: 0; opacity: 0; margin-top: 0 !important; }
+  #pca-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(17,24,39,0.95);
+               display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+  #pca-canvas { background-color: #1f2937; border-radius: 0.5rem; max-width: 92vw; max-height: 72vh; }
+
+  /* Info panel background (replaces bg-gray-800 + bg-opacity-80) */
+  #info-panel { background: rgba(31,41,55,0.88); backdrop-filter: blur(2px); }
+
+  /* ---- Minimal utility shim (reproduces the Tailwind classes used) ---- */
+  .absolute { position: absolute; }
+  .top-4 { top: 1rem; } .left-4 { left: 1rem; } .right-4 { right: 1rem; }
+  .p-4 { padding: 1rem; } .p-1 { padding: 0.25rem; }
+  .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+  .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+  .px-4 { padding-left: 1rem; padding-right: 1rem; }
+  .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+  .px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+  .pt-3 { padding-top: 0.75rem; }
+  .mt-2 { margin-top: 0.5rem; } .mt-3 { margin-top: 0.75rem; } .mt-4 { margin-top: 1rem; }
+  .mb-4 { margin-bottom: 1rem; }
+  .rounded { border-radius: 0.25rem; } .rounded-lg { border-radius: 0.5rem; } .rounded-full { border-radius: 9999px; }
+  .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0,0,0,.35), 0 4px 6px -4px rgba(0,0,0,.35); }
+  .max-w-xs { max-width: 20rem; }
+  .w-11\/12 { width: 91.6667%; } .w-full { width: 100%; }
+  .w-1\/3 { width: 33.3333%; } .w-2\/3 { width: 66.6667%; }
+  .w-5 { width: 1.25rem; } .h-5 { height: 1.25rem; }
+  .flex { display: flex; } .justify-between { justify-content: space-between; }
+  .justify-center { justify-content: center; } .items-center { align-items: center; }
+  .space-x-2 > * + * { margin-left: 0.5rem; } .space-y-1 > * + * { margin-top: 0.25rem; }
+  .cursor-pointer { cursor: pointer; } .text-center { text-align: center; }
+  .border-t { border-top: 1px solid transparent; } .border-gray-600 { border-color: #4b5563; }
+  .text-2xl { font-size: 1.5rem; line-height: 2rem; }
+  .text-lg { font-size: 1.125rem; line-height: 1.75rem; }
+  .text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+  .text-xs { font-size: 0.75rem; line-height: 1rem; }
+  .font-bold { font-weight: 700; } .font-semibold { font-weight: 600; }
+  button { font-family: inherit; border: none; cursor: pointer; }
+  .focus\:outline-none:focus { outline: none; }
+
+  /* Text colors */
+  .text-white { color: #fff; } .text-gray-400 { color: #9ca3af; } .text-gray-500 { color: #6b7280; }
+  .text-green-400 { color: #4ade80; } .text-red-400 { color: #f87171; } .text-blue-400 { color: #60a5fa; }
+  .text-yellow-400 { color: #facc15; } .text-purple-400 { color: #c084fc; } .text-indigo-400 { color: #818cf8; }
+  .text-sky-400 { color: #38bdf8; } .text-amber-400 { color: #fbbf24; } .text-rose-400 { color: #fb7185; }
+  .text-cyan-400 { color: #22d3ee; } .text-lime-400 { color: #a3e635; } .text-orange-400 { color: #fb923c; }
+  .text-teal-400 { color: #2dd4bf; }
+
+  /* Backgrounds + hovers */
+  .bg-gray-900\/60 { background-color: rgba(17,24,39,0.6); }
+  .bg-gray-600 { background-color: #4b5563; } .hover\:bg-gray-700:hover { background-color: #374151; }
+  .hover\:bg-gray-500:hover { background-color: #6b7280; }
+  .bg-blue-600 { background-color: #2563eb; } .hover\:bg-blue-700:hover { background-color: #1d4ed8; }
+  .bg-red-600 { background-color: #dc2626; } .hover\:bg-red-700:hover { background-color: #b91c1c; }
+  .bg-green-600 { background-color: #16a34a; }
+  button { transition: background-color 0.15s ease; }
+</style>
+
+<div id="info-panel" class="info-panel absolute top-4 left-4 bg-gray-800 bg-opacity-80 p-4 rounded-lg shadow-lg max-w-xs w-11/12">
+        <div class="flex justify-between items-center cursor-pointer" id="ui-toggle-header">
+            <h1 class="text-lg font-bold">Critter Ecosystem</h1>
+            <button id="toggle-ui-btn" class="p-1 rounded-full hover:bg-gray-700 focus:outline-none">
+                <svg id="toggle-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 12H6"></path></svg>
+            </button>
+        </div>
+        <div id="ui-content" class="mt-2">
+            <div class="text-sm space-y-1">
+                <p>Population: <span id="population-count">0</span>/<span id="max-population-count">0</span></p>
+                <p>Eggs: <span id="egg-count">0</span> | Food: <span id="food-count">0</span></p>
+            </div>
+            <canvas id="pop-graph" width="256" height="48" class="mt-2 w-full rounded bg-gray-900/60"></canvas>
+            <div class="mt-3 pt-3 border-t border-gray-600 text-sm space-y-1">
+                 <p>Births: <span id="births-count" class="font-semibold text-green-400">0</span> | Non-Viable: <span id="nonviable-count" class="font-semibold text-red-400">0</span> | Immigrants: <span id="immigrants-count" class="font-semibold text-lime-400" title="fresh critters that drift in when the population nears extinction">0</span></p>
+                 <p>Deaths: <span title="starvation" class="font-semibold text-sky-400" id="starvation-count">0</span> starved · <span title="old age" class="font-semibold text-amber-400" id="oldage-count">0</span> aged · <span title="injury" class="font-semibold text-rose-400" id="injury-count">0</span> injured</p>
+                 <p>Mutations: <span id="mutations-count" class="font-semibold text-yellow-400">0</span></p>
+                 <p>Avg. Genes: <span id="avg-genes-count" class="font-semibold text-purple-400">0.0</span> | Avg. Energy: <span id="avg-energy-count" class="font-semibold text-cyan-400">0</span></p>
+                 <p>Avg. Genome Size: <span id="avg-genome-size" class="font-semibold text-indigo-400">0</span></p>
+            </div>
+            <div class="mt-3 pt-3 border-t border-gray-600">
+                <label class="text-sm">Mutation Rate: <span id="mutation-rate-value" class="font-semibold text-blue-400">0.10%</span></label>
+                <input type="range" id="mutation-rate-slider" min="0" max="0.05" step="0.0001" class="mt-2">
+            </div>
+            <div class="mt-3">
+                <label class="text-sm">Food Spawn Rate: <span id="food-rate-value" class="font-semibold text-green-400">2.0/s</span></label>
+                <input type="range" id="food-rate-slider" min="0" max="40" step="0.5" class="mt-2">
+            </div>
+            <div class="mt-3">
+                <label class="text-sm">Injury Risk: <span id="injury-risk-value" class="font-semibold text-orange-400">1.0x</span></label>
+                <input type="range" id="injury-risk-slider" min="0" max="5" step="0.1" class="mt-2">
+            </div>
+            <div class="mt-3">
+                <label class="text-sm">Sim Speed: <span id="sim-speed-value" class="font-semibold text-teal-400">1x</span></label>
+                <input type="range" id="sim-speed-slider" min="1" max="20" step="1" class="mt-2">
+            </div>
+            <div class="mt-4 flex space-x-2">
+                <button id="pause-btn" class="w-1/3 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-2 rounded">
+                    Pause
+                </button>
+                <button id="view-pca-btn" class="w-2/3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                    View Genetic Map
+                </button>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">Tip: press <span class="font-semibold">Space</span> to pause.</p>
+        </div>
+    </div>
+
+    <!-- PCA Modal -->
+    <div id="pca-modal">
+        <div class="absolute top-4 right-4">
+            <button id="close-pca-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Close</button>
+        </div>
+        <div class="text-center mb-4">
+            <h2 class="text-2xl font-bold">Population Genetic Map (PCA)</h2>
+            <p class="text-gray-400">Color by:</p>
+            <div id="pca-color-buttons" class="flex justify-center space-x-2 mt-2">
+                <button class="pca-color-btn bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded" data-color="length">Length</button>
+                <button class="pca-color-btn bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded" data-color="eyes">Eyes</button>
+                <button class="pca-color-btn bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded" data-color="mouth">Mouth</button>
+                <button class="pca-color-btn bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded" data-color="repro">Reproduction</button>
+            </div>
+        </div>
+        <canvas id="pca-canvas" width="800" height="600"></canvas>
+    </div>
+
+    <canvas id="simulationCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('simulationCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // --- Global State & Config ---
+        let critters = [], eggs = [], foodPellets = [], spermParticles = [];
+        const MAX_CRITTERS = 200;
+        const NUCLEOTIDES = ['A', 'C', 'G', 'T'];
+        const BASE_INJURY_RISK = { BASE: 0.000005, SEGMENT: 0.00001, MOUTH: 0.000025, EYES: 0.00005 };
+        
+        let MUTATION_RATE = 0.001, INDEL_RATE = 0.0005, LARGE_MUTATION_RATE = 0.0001;
+        let FOOD_SPAWN_RATE = 8;
+        let INJURY_RISK_MULTIPLIER = 1.0;
+        let SIMULATION_SPEED = 1;
+        let isPaused = false;
+        let totalMutations = 0, totalBirths = 0, nonViableHatches = 0;
+        let starvationDeaths = 0, oldAgeDeaths = 0, injuryDeaths = 0, totalImmigrants = 0;
+        const MIN_VIABLE_POPULATION = 6;      // below this, immigrants trickle in
+        const IMMIGRATION_RATE_PER_TICK = 0.004; // ~1 immigrant every few seconds at 1x
+
+        // --- Metabolism / life-cycle config (creates real selective pressure) ---
+        const STARTING_ENERGY = 100;     // energy a fresh critter hatches with
+        const MAX_ENERGY = 160;          // cap so hoarding food has diminishing returns
+        const FOOD_ENERGY = 40;          // energy gained per food pellet eaten
+        const METABOLIC_BASE = 0.020;    // energy drained per simulation tick (baseline)
+        const METABOLIC_PER_SEGMENT = 0.006; // bigger bodies cost more to run
+        const METABOLIC_EYES = 0.010;    // vision is metabolically expensive
+        const METABOLIC_MOUTH = 0.004;
+        const METABOLIC_PER_GENOME = 0.000012; // per genome base-pair (bloat penalty)
+        const REPRO_ENERGY_COST = 25;    // energy spent to reproduce (on top of food "charge")
+        const MAX_AGE_TICKS = 5400;      // ~90s of life at 1x before old age sets in
+
+        // Rolling population history for the live graph (visual polish)
+        const POP_HISTORY_MAX = 200;
+        let populationHistory = [];
+        let historyTick = 0;
+
+        const ui = { pop: document.getElementById('population-count'), eggs: document.getElementById('egg-count'), food: document.getElementById('food-count'), births: document.getElementById('births-count'), nonViable: document.getElementById('nonviable-count'), mutations: document.getElementById('mutations-count'), avgGenes: document.getElementById('avg-genes-count'), avgGenomeSize: document.getElementById('avg-genome-size'), avgEnergy: document.getElementById('avg-energy-count'), immigrants: document.getElementById('immigrants-count'), starvation: document.getElementById('starvation-count'), oldage: document.getElementById('oldage-count'), injury: document.getElementById('injury-count'), popGraph: document.getElementById('pop-graph'), mutRateSlider: document.getElementById('mutation-rate-slider'), mutRateValue: document.getElementById('mutation-rate-value'), foodRateSlider: document.getElementById('food-rate-slider'), foodRateValue: document.getElementById('food-rate-value'), injuryRiskSlider: document.getElementById('injury-risk-slider'), injuryRiskValue: document.getElementById('injury-risk-value'), simSpeedSlider: document.getElementById('sim-speed-slider'), simSpeedValue: document.getElementById('sim-speed-value'), pauseBtn: document.getElementById('pause-btn') };
+        const popGraphCtx = ui.popGraph.getContext('2d');
+        document.getElementById('max-population-count').textContent = MAX_CRITTERS;
+
+        window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+
+        const getRandom = (min, max) => Math.random() * (max - min) + min;
+        const getRandomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+        const getRandomNucleotide = () => NUCLEOTIDES[getRandomInt(0, 3)];
+
+        // --- Genetics Engine ---
+        const CODON_MAP = { 'START': 'ATG', 'STOP': 'TAA', 'SEGMENT': 'GCC', 'EYES': 'GAT', 'MOUTH': 'GAC', 'OVIPOSITOR': 'TTA', 'SPERM': 'TTC', 'STORAGE': 'GCA', 'MUTATION_RESISTANCE': 'CAT', 'RED': 'TGG', 'GREEN': 'TGC', 'BLUE': 'TGT' };
+        const REVERSE_CODON_MAP = Object.fromEntries(Object.entries(CODON_MAP).map(([k, v]) => [v, k]));
+
+        class GeneticInterpreter {
+            static parse(genome) {
+                const phenotype = { isValid: false, segments: [], reproductiveParts: [], hasMouth: false, hasEyes: false, foodStorage: 0, geneCount: 0, baseInjuryRisk: BASE_INJURY_RISK.BASE, genomeSize: genome.length };
+                const genes = this.extractGenes(genome);
+                phenotype.geneCount = genes.length;
+                let isFirstSegment = true;
+
+                genes.forEach(gene => {
+                    let isSegment = false, isOvipositor = false, isSperm = false;
+                    let resistance = 0, storage = 0;
+                    const colorCodons = [];
+                    gene.forEach(codonName => {
+                        if (codonName === 'SEGMENT') isSegment = true;
+                        if (codonName === 'OVIPOSITOR') isOvipositor = true;
+                        if (codonName === 'SPERM') isSperm = true;
+                        if (codonName === 'STORAGE') storage++;
+                        if (codonName === 'MUTATION_RESISTANCE') resistance++;
+                        if (['RED', 'GREEN', 'BLUE'].includes(codonName)) colorCodons.push(codonName);
+                        if (isFirstSegment && codonName === 'MOUTH') phenotype.hasMouth = true;
+                        if (isFirstSegment && codonName === 'EYES') phenotype.hasEyes = true;
+                    });
+                    const colorData = this.blendColors(colorCodons);
+                    phenotype.foodStorage += storage;
+                    if (isSegment) {
+                        phenotype.segments.push({ color: colorData.hsl });
+                        phenotype.baseInjuryRisk += BASE_INJURY_RISK.SEGMENT;
+                        isFirstSegment = false;
+                    }
+                    if (isOvipositor) phenotype.reproductiveParts.push({ type: 'ovipositor', color: colorData, resistance });
+                    if (isSperm) phenotype.reproductiveParts.push({ type: 'sperm', color: colorData, resistance });
+                });
+                if (phenotype.hasMouth) phenotype.baseInjuryRisk += BASE_INJURY_RISK.MOUTH;
+                if (phenotype.hasEyes) phenotype.baseInjuryRisk += BASE_INJURY_RISK.EYES;
+                phenotype.speed = 1.0 + phenotype.segments.length * 0.08;
+                phenotype.isValid = phenotype.segments.length >= 1 && phenotype.segments.length <= 7;
+                phenotype.reproCost = Math.max(3, Math.ceil(phenotype.genomeSize / 220));
+                // Metabolic rate: the running cost of this body plan per tick.
+                // This is what turns food from "reproduction fuel" into "survival fuel".
+                phenotype.metabolicRate = METABOLIC_BASE
+                    + phenotype.segments.length * METABOLIC_PER_SEGMENT
+                    + (phenotype.hasEyes ? METABOLIC_EYES : 0)
+                    + (phenotype.hasMouth ? METABOLIC_MOUTH : 0)
+                    // Carrying a bloated genome is metabolically costly → selects against runaway
+                    // insertions and keeps the population's genome size in check over generations.
+                    + phenotype.genomeSize * METABOLIC_PER_GENOME;
+                return phenotype;
+            }
+            static extractGenes(genome) {
+                const genes = []; let i = 0;
+                while (i <= genome.length - 6) {
+                    if (genome.substring(i, i + 3) === CODON_MAP.START) {
+                        const gene = this.readGene(genome, i + 3);
+                        if (gene.codons.length > 0) { genes.push(gene.codons); i = gene.endPos; } else { i += 3; }
+                    } else { i += 3; }
+                }
+                return genes;
+            }
+            static readGene(genome, startIndex) {
+                const codons = []; let i = startIndex;
+                while (i <= genome.length - 3) {
+                    const triplet = genome.substring(i, i + 3);
+                    if (triplet === CODON_MAP.STOP) return { codons, endPos: i + 3 };
+                    const name = REVERSE_CODON_MAP[triplet];
+                    if (name) codons.push(name);
+                    i += 3;
+                }
+                return { codons: [], endPos: i };
+            }
+            static blendColors(colorCodons) {
+                let r = 0, g = 0, b = 0;
+                colorCodons.forEach(c => { if (c === 'RED') r = 1; if (c === 'GREEN') g = 1; if (c === 'BLUE') b = 1; });
+                if (r+g+b === 0) { r=1; g=1; b=1; }
+                let hue;
+                if (r && g && b) hue = 0; else if (r && g) hue = 60; else if (r && b) hue = 300;
+                else if (g && b) hue = 180; else if (r) hue = 0; else if (g) hue = 120; else if (b) hue = 240;
+                else hue = 220;
+                return { hsl: `hsl(${hue}, ${r&&g&&b ? 0 : 80}%, 60%)`, components: {r,g,b} };
+            }
+        }
+        
+        // --- Entities ---
+        class FoodPellet {
+            constructor() { this.x = getRandom(20, canvas.width - 20); this.y = getRandom(20, canvas.height - 20); this.radius = 3; }
+            draw() { ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = 'hsl(50, 100%, 75%)'; ctx.fill(); }
+        }
+
+        class Egg {
+            constructor(motherGenome, x, y, colorData) {
+                this.motherGenome = motherGenome; this.x = x; this.y = y;
+                this.isFertilized = false; this.hatchTime = Infinity; this.radius = 4;
+                this.colorData = colorData; this.color = colorData.hsl;
+                this.layTime = Date.now();
+                // Unfertilized eggs are viable for a limited window, then they spoil.
+                this.expiryTime = Date.now() + 30000 / SIMULATION_SPEED;
+            }
+            fertilize(fatherGenome, resistance) {
+                this.isFertilized = true;
+                const effectiveMutRate = MUTATION_RATE * Math.pow(0.5, resistance);
+                const offspringGenome = createOffspringGenome(this.motherGenome, fatherGenome, effectiveMutRate);
+                const phenotype = GeneticInterpreter.parse(offspringGenome);
+                if (phenotype.isValid) {
+                    this.hatchTime = Date.now() + getRandom(10000, 15000) / SIMULATION_SPEED;
+                    this.offspringGenome = offspringGenome;
+                } else {
+                    nonViableHatches++;
+                    this.hatchTime = Date.now() + 2000 / SIMULATION_SPEED;
+                }
+            }
+            update() {
+                // Unfertilized eggs spoil if no sperm reaches them in time.
+                if (!this.isFertilized) return Date.now() > this.expiryTime;
+                if (Date.now() > this.hatchTime) {
+                    if (this.offspringGenome) {
+                        if (critters.length >= MAX_CRITTERS) critters.sort((a,b)=>a.birthDate - b.birthDate).shift();
+                        critters.push(new Critter(this.offspringGenome, this.x, this.y));
+                        totalBirths++;
+                    }
+                    return true;
+                }
+                return false;
+            }
+            draw() {
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color; ctx.fill();
+                ctx.strokeStyle = this.isFertilized ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.4)';
+                ctx.lineWidth = this.isFertilized ? 1.5 : 1; ctx.stroke();
+            }
+        }
+
+        class SpermParticle {
+            constructor(x, y, fatherGenome, resistance) {
+                this.x = x; this.y = y;
+                this.vx = getRandom(-2, 2); this.vy = getRandom(-2, 2);
+                this.fatherGenome = fatherGenome;
+                this.resistance = resistance;
+                this.life = 1.0;
+                this.decay = 0.004; // live a little longer to give chemotaxis time to work
+            }
+            update() {
+                // Chemotaxis: steer toward the nearest unfertilized egg within sensing range.
+                let nearest = null, bestD2 = 200 * 200;
+                for (let i = 0; i < eggs.length; i++) {
+                    const egg = eggs[i];
+                    if (egg.isFertilized) continue;
+                    const dx = egg.x - this.x, dy = egg.y - this.y;
+                    const d2 = dx * dx + dy * dy;
+                    if (d2 < bestD2) { bestD2 = d2; nearest = egg; }
+                }
+                if (nearest) {
+                    const ang = Math.atan2(nearest.y - this.y, nearest.x - this.x);
+                    this.vx += Math.cos(ang) * 0.5;
+                    this.vy += Math.sin(ang) * 0.5;
+                    const sp = Math.hypot(this.vx, this.vy), max = 3.2;
+                    if (sp > max) { this.vx = this.vx / sp * max; this.vy = this.vy / sp * max; }
+                }
+                this.x += this.vx; this.y += this.vy;
+                this.life -= this.decay;
+                return this.life > 0;
+            }
+            draw() {
+                ctx.fillStyle = `rgba(248, 129, 129, ${this.life})`;
+                ctx.fillRect(this.x - 1, this.y - 1, 2, 2);
+            }
+        }
+        
+        class Critter {
+            constructor(genome, x, y) {
+                this.genome = genome; this.phenotype = GeneticInterpreter.parse(genome);
+                this.birthDate = Date.now();
+                this.energy = STARTING_ENERGY;
+                this.age = 0; // measured in simulation ticks
+                this.segmentLength = 6;
+                this.points = Array.from({ length: this.phenotype.segments.length }, (_, i) => ({ x: x - this.segmentLength * i, y: y }));
+                this.velocity = { x: getRandom(-1, 1), y: getRandom(-1, 1) };
+                this.reproCharge = 0; this.reproCooldown = 0;
+                this.targetFood = null;
+                this.isDead = false;
+                this.lastPosition = { x, y };
+                this.stuckCheckTime = Date.now();
+                this.isDarting = false;
+                this.isPhasing = false;
+                this.phasingEndTime = 0;
+            }
+            draw() {
+                // Fade critters that are running low on energy so starvation is visible.
+                const energyRatio = Math.max(0, Math.min(1, this.energy / STARTING_ENERGY));
+                const baseAlpha = 0.45 + 0.55 * energyRatio;
+                ctx.globalAlpha = (this.isPhasing ? 0.5 : 1.0) * baseAlpha;
+                const head = this.points[0];
+                if (head) {
+                    // Energy bar (blue→red as it drains).
+                    const eR = Math.max(0, Math.min(1, this.energy / MAX_ENERGY));
+                    ctx.globalAlpha = this.isPhasing ? 0.5 : 1.0;
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)'; ctx.fillRect(head.x - 10, head.y - 16, 20, 2.5);
+                    ctx.fillStyle = `hsl(${eR * 200}, 85%, 55%)`; ctx.fillRect(head.x - 10, head.y - 16, 20 * eR, 2.5);
+                    ctx.globalAlpha = (this.isPhasing ? 0.5 : 1.0) * baseAlpha;
+                }
+                if (this.reproCharge > 0) {
+                    const chargeRatio = this.reproCharge / this.phenotype.reproCost;
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)'; ctx.fillRect(head.x - 10, head.y - 12, 20, 3);
+                    ctx.fillStyle = `hsl(120, 80%, ${30 + chargeRatio * 40}%)`; ctx.fillRect(head.x - 10, head.y - 12, 20 * chargeRatio, 3);
+                }
+                for (let i = this.points.length - 1; i > 0; i--) {
+                    ctx.beginPath(); ctx.moveTo(this.points[i].x, this.points[i].y);
+                    ctx.lineTo(this.points[i-1].x, this.points[i-1].y);
+                    ctx.strokeStyle = this.phenotype.segments[i-1].color;
+                    ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.stroke();
+                }
+                this.drawHead();
+                ctx.globalAlpha = 1.0;
+            }
+            drawHead() {
+                const head = this.points[0]; if (!head) return;
+                const neck = this.points.length > 1 ? this.points[1] : {x: head.x - this.segmentLength, y: head.y};
+                const angle = Math.atan2(head.y - neck.y, head.x - neck.x);
+                const hasOvipositor = this.phenotype.reproductiveParts.some(p => p.type === 'ovipositor');
+                const hasSperm = this.phenotype.reproductiveParts.some(p => p.type === 'sperm');
+                const symbolOffset = hasOvipositor && hasSperm ? 2.5 : 0;
+
+                if (hasOvipositor) {
+                    const sx = head.x - Math.cos(angle) * 7 - Math.sin(angle) * symbolOffset;
+                    const sy = head.y - Math.sin(angle) * 7 + Math.cos(angle) * symbolOffset;
+                    ctx.beginPath(); ctx.arc(sx, sy, 2, 0, 2 * Math.PI);
+                    ctx.fillStyle = 'rgba(129, 140, 248, 0.9)'; ctx.fill();
+                }
+                if (hasSperm) {
+                    const sx = head.x - Math.cos(angle) * 7 + Math.sin(angle) * symbolOffset;
+                    const sy = head.y - Math.sin(angle) * 7 - Math.cos(angle) * symbolOffset;
+                    ctx.beginPath();
+                    ctx.moveTo(sx + Math.cos(angle) * 3, sy + Math.sin(angle) * 3);
+                    ctx.lineTo(sx - Math.cos(angle + 0.5) * 3, sy - Math.sin(angle + 0.5) * 3);
+                    ctx.lineTo(sx - Math.cos(angle - 0.5) * 3, sy - Math.sin(angle - 0.5) * 3);
+                    ctx.closePath();
+                    ctx.fillStyle = 'rgba(248, 129, 129, 0.9)'; ctx.fill();
+                }
+                if (this.phenotype.hasEyes) {
+                    const eD = 3, eA = Math.PI / 2.5, eS = 1.5;
+                    const e1x = head.x + Math.cos(angle + eA) * eD, e1y = head.y + Math.sin(angle + eA) * eD;
+                    const e2x = head.x + Math.cos(angle - eA) * eD, e2y = head.y + Math.sin(angle - eA) * eD;
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath(); ctx.arc(e1x, e1y, eS, 0, 2 * Math.PI); ctx.fill();
+                    ctx.beginPath(); ctx.arc(e2x, e2y, eS, 0, 2 * Math.PI); ctx.fill();
+                    ctx.fillStyle = 'black';
+                    ctx.beginPath(); ctx.arc(e1x + Math.cos(angle), e1y + Math.sin(angle), eS/2, 0, 2 * Math.PI); ctx.fill();
+                    ctx.beginPath(); ctx.arc(e2x + Math.cos(angle), e2y + Math.sin(angle), eS/2, 0, 2 * Math.PI); ctx.fill();
+                }
+                if (this.phenotype.hasMouth) {
+                    const mS = 5, mA = Math.PI / 6;
+                    const p1x = head.x + Math.cos(angle) * (mS * 1.5), p1y = head.y + Math.sin(angle) * (mS * 1.5);
+                    const p2x = head.x + Math.cos(angle + mA) * mS, p2y = head.y + Math.sin(angle + mA) * mS;
+                    const p3x = head.x + Math.cos(angle - mA) * mS, p3y = head.y + Math.sin(angle - mA) * mS;
+                    ctx.beginPath(); ctx.moveTo(p1x, p1y); ctx.lineTo(p2x, p2y); ctx.lineTo(p3x, p3y); ctx.closePath();
+                    ctx.fillStyle = this.phenotype.segments[0].color; ctx.fill();
+                }
+            }
+            update() {
+                // --- Death checks (in order of cause) ---
+                if (Math.random() < this.phenotype.baseInjuryRisk * INJURY_RISK_MULTIPLIER) {
+                    this.isDead = true; injuryDeaths++; return;
+                }
+                this.age++;
+                // Metabolism: burn energy every tick just to stay alive.
+                this.energy -= this.phenotype.metabolicRate;
+                if (this.energy <= 0) { this.isDead = true; starvationDeaths++; return; }
+                // Aging: past the soft cap, death chance climbs steadily toward certainty.
+                if (this.age > MAX_AGE_TICKS) {
+                    const overAge = (this.age - MAX_AGE_TICKS) / MAX_AGE_TICKS;
+                    if (Math.random() < overAge * 0.02) { this.isDead = true; oldAgeDeaths++; return; }
+                }
+
+                this.checkIfStuck();
+                this.updateAI();
+                this.moveHead();
+                this.attemptReproduction();
+            }
+            eat() {
+                this.energy = Math.min(MAX_ENERGY, this.energy + FOOD_ENERGY);
+                if (this.reproCharge < this.phenotype.reproCost) this.reproCharge++;
+            }
+            checkIfStuck() {
+                if (this.isPhasing && Date.now() > this.phasingEndTime) {
+                    this.isPhasing = false;
+                }
+                if (Date.now() > this.stuckCheckTime + 1000 / SIMULATION_SPEED) {
+                    const distMoved = Math.hypot(this.points[0].x - this.lastPosition.x, this.points[0].y - this.lastPosition.y);
+                    if (distMoved < this.phenotype.speed * 5) {
+                        this.isDarting = true;
+                        this.isPhasing = true;
+                        this.phasingEndTime = Date.now() + 2000 / SIMULATION_SPEED;
+                    }
+                    this.lastPosition = { x: this.points[0].x, y: this.points[0].y };
+                    this.stuckCheckTime = Date.now();
+                }
+            }
+            updateAI() {
+                if (this.isDarting) {
+                    this.randomWander();
+                    if (Date.now() > this.stuckCheckTime + 250 / SIMULATION_SPEED) {
+                        this.isDarting = false;
+                    }
+                    return;
+                }
+                
+                if (this.phenotype.hasEyes) {
+                    if (!this.targetFood || foodPellets.indexOf(this.targetFood) === -1) {
+                        this.targetFood = this.findNearestFood();
+                    }
+                    if(this.targetFood) {
+                        const angle = Math.atan2(this.targetFood.y - this.points[0].y, this.targetFood.x - this.points[0].x);
+                        this.velocity.x = Math.cos(angle);
+                        this.velocity.y = Math.sin(angle);
+                    } else {
+                        this.randomWander();
+                    }
+                } else {
+                    this.randomWander();
+                }
+            }
+            moveHead() {
+                const head = this.points[0];
+                head.x += this.velocity.x * this.phenotype.speed;
+                head.y += this.velocity.y * this.phenotype.speed;
+                const m = 20;
+                if ((head.x < m && this.velocity.x * this.phenotype.speed < 0) || (head.x > canvas.width - m && this.velocity.x * this.phenotype.speed > 0)) this.velocity.x *= -1;
+                if ((head.y < m && this.velocity.y * this.phenotype.speed < 0) || (head.y > canvas.height - m && this.velocity.y * this.phenotype.speed > 0)) this.velocity.y *= -1;
+            }
+            updateBodySegments() {
+                 for (let i = 1; i < this.points.length; i++) {
+                    const curr = this.points[i], prev = this.points[i - 1];
+                    const dist = Math.hypot(prev.x - curr.x, prev.y - curr.y);
+                    if (dist > this.segmentLength) {
+                        const angle = Math.atan2(prev.y - curr.y, prev.x - curr.x);
+                        curr.x = prev.x - Math.cos(angle) * this.segmentLength; curr.y = prev.y - Math.sin(angle) * this.segmentLength;
+                    }
+                }
+            }
+            findNearestFood() {
+                let closestDist = Infinity, closestFood = null;
+                foodPellets.forEach(f => {
+                    const dist = Math.hypot(this.points[0].x - f.x, this.points[0].y - f.y);
+                    if (dist < closestDist) { closestDist = dist; closestFood = f; }
+                });
+                return closestFood;
+            }
+            randomWander() {
+                this.velocity.x += getRandom(-0.1, 0.1); this.velocity.y += getRandom(-0.1, 0.1);
+                const speed = Math.hypot(this.velocity.x, this.velocity.y);
+                if (speed > 1) { this.velocity.x /= speed; this.velocity.y /= speed; }
+            }
+            attemptReproduction() {
+                if (Date.now() < this.reproCooldown || this.reproCharge < this.phenotype.reproCost) {
+                    return;
+                }
+                // Reproduction is expensive: refuse if it would starve the parent.
+                if (this.energy < REPRO_ENERGY_COST + STARTING_ENERGY * 0.4) {
+                    return;
+                }
+
+                const possibleActions = this.phenotype.reproductiveParts;
+                if (possibleActions.length === 0) return;
+
+                const action = possibleActions[getRandomInt(0, possibleActions.length - 1)];
+
+                if (action.type === 'ovipositor') {
+                    const tail = this.points[this.points.length - 1];
+                    eggs.push(new Egg(this.genome, tail.x, tail.y, action.color));
+                } else if (action.type === 'sperm') {
+                    const spermCount = this.phenotype.reproductiveParts.filter(p => p.type === 'sperm').length * 14;
+                    for (let i = 0; i < spermCount; i++) {
+                        spermParticles.push(new SpermParticle(this.points[0].x, this.points[0].y, this.genome, action.resistance));
+                    }
+                }
+
+                this.energy -= REPRO_ENERGY_COST;
+                this.reproCharge = 0;
+                this.reproCooldown = Date.now() + 3200 / SIMULATION_SPEED;
+            }
+        }
+
+        // --- Core Simulation Logic ---
+        function createOffspringGenome(g1, g2, mutRate) {
+            let newGenome = "";
+            if (Math.random() < LARGE_MUTATION_RATE) {
+                const index = getRandomInt(0, g1.length); const length = getRandomInt(30, 150);
+                const chunk = g1.substring(index, index + length); const insertPos = getRandomInt(0, g1.length);
+                g1 = g1.slice(0, insertPos) + chunk + g1.slice(insertPos); totalMutations += length;
+            }
+            if (Math.random() < LARGE_MUTATION_RATE) {
+                const index = getRandomInt(0, g2.length); const length = getRandomInt(30, 150);
+                g2 = g2.slice(0, index) + g2.slice(index + length); totalMutations += length;
+            }
+            let i1 = 0, i2 = 0;
+            while (i1 < g1.length || i2 < g2.length) {
+                let nucleotide = Math.random() < 0.5 ? (i1 < g1.length ? g1[i1++] : g2[i2++]) : (i2 < g2.length ? g2[i2++] : g1[i1++]);
+                if (Math.random() < INDEL_RATE) { totalMutations++; continue; }
+                if (Math.random() < INDEL_RATE) { totalMutations++; newGenome += getRandomNucleotide(); }
+                if (Math.random() < mutRate) { nucleotide = getRandomNucleotide(); totalMutations++; }
+                newGenome += nucleotide;
+            }
+            return newGenome;
+        }
+
+        function handlePositionalCorrection() {
+            const correction_iterations = 3;
+            const minDist = 15;
+            for (let k = 0; k < correction_iterations; k++) {
+                for (let i = 0; i < critters.length; i++) {
+                    for (let j = i + 1; j < critters.length; j++) {
+                        const c1 = critters[i], c2 = critters[j];
+                        if (c1.isPhasing || c2.isPhasing) continue;
+                        const head1 = c1.points[0], head2 = c2.points[0];
+                        const dx = head2.x - head1.x, dy = head2.y - head1.y;
+                        const dist = Math.hypot(dx, dy);
+                        if (dist < minDist && dist > 0) {
+                            const overlap = (minDist - dist) / 2;
+                            const moveX = (dx / dist) * overlap;
+                            const moveY = (dy / dist) * overlap;
+                            head1.x -= moveX; head1.y -= moveY;
+                            head2.x += moveX; head2.y += moveY;
+                        }
+                    }
+                }
+            }
+        }
+
+        function handleInteractions() {
+            // Eating
+            critters.forEach(c => {
+                if (!c.phenotype.hasMouth) return;
+                const head = c.points[0];
+                foodPellets = foodPellets.filter(f => {
+                    if (Math.hypot(head.x - f.x, head.y - f.y) < 10) { c.eat(); return false; }
+                    return true;
+                });
+            });
+
+            // Sperm Particle-Egg Fertilization
+            spermParticles = spermParticles.filter(p => {
+                let fertilizedSomething = false;
+                eggs.forEach(egg => {
+                    if (!egg.isFertilized && Math.hypot(p.x - egg.x, p.y - egg.y) < egg.radius + 5) {
+                        egg.fertilize(p.fatherGenome, p.resistance);
+                        fertilizedSomething = true;
+                    }
+                });
+                return !fertilizedSomething;
+            });
+        }
+        
+        function updateUI() {
+            ui.pop.textContent = critters.length;
+            ui.eggs.textContent = eggs.filter(e => !e.isFertilized).length;
+            ui.food.textContent = foodPellets.length;
+            ui.births.textContent = totalBirths;
+            ui.nonViable.textContent = nonViableHatches;
+            ui.immigrants.textContent = totalImmigrants;
+            ui.starvation.textContent = starvationDeaths;
+            ui.oldage.textContent = oldAgeDeaths;
+            ui.injury.textContent = injuryDeaths;
+            ui.mutations.textContent = totalMutations;
+            if (critters.length > 0) {
+                const totalGenes = critters.reduce((sum, c) => sum + c.phenotype.geneCount, 0);
+                ui.avgGenes.textContent = (totalGenes / critters.length).toFixed(1);
+                const totalSize = critters.reduce((sum, c) => sum + c.phenotype.genomeSize, 0);
+                ui.avgGenomeSize.textContent = Math.round(totalSize / critters.length);
+                const totalEnergy = critters.reduce((sum, c) => sum + c.energy, 0);
+                ui.avgEnergy.textContent = Math.round(totalEnergy / critters.length);
+            } else { ui.avgGenes.textContent = "0.0"; ui.avgGenomeSize.textContent = "0"; ui.avgEnergy.textContent = "0"; }
+            drawPopGraph();
+        }
+
+        function drawPopGraph() {
+            const w = ui.popGraph.width, h = ui.popGraph.height;
+            popGraphCtx.clearRect(0, 0, w, h);
+            if (populationHistory.length < 2) return;
+            const maxVal = Math.max(MAX_CRITTERS, ...populationHistory);
+            const step = w / (POP_HISTORY_MAX - 1);
+            // Filled area under the population line.
+            popGraphCtx.beginPath();
+            popGraphCtx.moveTo(0, h);
+            populationHistory.forEach((v, i) => {
+                popGraphCtx.lineTo(i * step, h - (v / maxVal) * (h - 2));
+            });
+            popGraphCtx.lineTo((populationHistory.length - 1) * step, h);
+            popGraphCtx.closePath();
+            popGraphCtx.fillStyle = 'rgba(96, 165, 250, 0.20)';
+            popGraphCtx.fill();
+            // Population line on top.
+            popGraphCtx.beginPath();
+            populationHistory.forEach((v, i) => {
+                const x = i * step, y = h - (v / maxVal) * (h - 2);
+                i === 0 ? popGraphCtx.moveTo(x, y) : popGraphCtx.lineTo(x, y);
+            });
+            popGraphCtx.strokeStyle = '#60a5fa';
+            popGraphCtx.lineWidth = 1.5;
+            popGraphCtx.stroke();
+        }
+
+        // --- Genetic Map (PCA) ---
+        // Projects each critter's phenotype into 2D so clusters/lineages are visible.
+        const pcaModal = document.getElementById('pca-modal');
+        const pcaCanvas = document.getElementById('pca-canvas');
+        const pcaCtx = pcaCanvas.getContext('2d');
+        let pcaColorMode = 'length';
+        let wasPausedBeforePCA = false;
+
+        function extractFeatureVector(c) {
+            const p = c.phenotype;
+            const ovi = p.reproductiveParts.filter(r => r.type === 'ovipositor').length;
+            const sperm = p.reproductiveParts.filter(r => r.type === 'sperm').length;
+            const resistance = p.reproductiveParts.reduce((s, r) => s + (r.resistance || 0), 0);
+            return [p.geneCount, p.genomeSize, p.segments.length, p.hasMouth ? 1 : 0,
+                    p.hasEyes ? 1 : 0, p.foodStorage, ovi, sperm, resistance, p.speed];
+        }
+
+        // Dominant eigenvector of a symmetric matrix via power iteration.
+        // If `deflate` is given, the result is kept orthogonal to it (→ 2nd component).
+        function topEigenvector(m, deflate) {
+            const d = m.length;
+            let v = Array.from({ length: d }, () => Math.random() - 0.5);
+            for (let iter = 0; iter < 120; iter++) {
+                if (deflate) {
+                    const dot = v.reduce((s, x, j) => s + x * deflate[j], 0);
+                    v = v.map((x, j) => x - dot * deflate[j]);
+                }
+                const nv = new Array(d).fill(0);
+                for (let a = 0; a < d; a++) {
+                    let s = 0;
+                    for (let b = 0; b < d; b++) s += m[a][b] * v[b];
+                    nv[a] = s;
+                }
+                if (deflate) {
+                    const dot = nv.reduce((s, x, j) => s + x * deflate[j], 0);
+                    for (let j = 0; j < d; j++) nv[j] -= dot * deflate[j];
+                }
+                const norm = Math.hypot(...nv) || 1;
+                v = nv.map(x => x / norm);
+            }
+            return v;
+        }
+
+        function computePCA(vectors) {
+            const n = vectors.length, d = vectors[0].length;
+            const mean = new Array(d).fill(0);
+            vectors.forEach(v => v.forEach((x, j) => { mean[j] += x; }));
+            mean.forEach((_, j) => { mean[j] /= n; });
+            const std = new Array(d).fill(0);
+            vectors.forEach(v => v.forEach((x, j) => { std[j] += (x - mean[j]) ** 2; }));
+            std.forEach((_, j) => { std[j] = Math.sqrt(std[j] / n) || 1; });
+            // Standardize so no single feature (e.g. genome size) dominates.
+            const X = vectors.map(v => v.map((x, j) => (x - mean[j]) / std[j]));
+            const cov = Array.from({ length: d }, () => new Array(d).fill(0));
+            for (let a = 0; a < d; a++) {
+                for (let b = a; b < d; b++) {
+                    let s = 0;
+                    for (let i = 0; i < n; i++) s += X[i][a] * X[i][b];
+                    s /= (n - 1);
+                    cov[a][b] = s; cov[b][a] = s;
+                }
+            }
+            const pc1 = topEigenvector(cov, null);
+            const pc2 = topEigenvector(cov, pc1);
+            return X.map(row => ({
+                x: row.reduce((s, v, j) => s + v * pc1[j], 0),
+                y: row.reduce((s, v, j) => s + v * pc2[j], 0)
+            }));
+        }
+
+        function pcaColorFor(c) {
+            const p = c.phenotype;
+            if (pcaColorMode === 'length') {
+                const t = Math.min(1, (p.segments.length - 1) / 6);
+                return `hsl(${270 - t * 270}, 80%, 60%)`;
+            } else if (pcaColorMode === 'eyes') {
+                return p.hasEyes ? '#34d399' : '#6b7280';
+            } else if (pcaColorMode === 'mouth') {
+                return p.hasMouth ? '#f59e0b' : '#6b7280';
+            } else if (pcaColorMode === 'repro') {
+                const ovi = p.reproductiveParts.some(r => r.type === 'ovipositor');
+                const sperm = p.reproductiveParts.some(r => r.type === 'sperm');
+                if (ovi && sperm) return '#a78bfa';
+                if (ovi) return '#818cf8';
+                if (sperm) return '#f87171';
+                return '#6b7280';
+            }
+            return '#ffffff';
+        }
+
+        function renderPCA() {
+            const w = pcaCanvas.width, h = pcaCanvas.height;
+            pcaCtx.clearRect(0, 0, w, h);
+            pcaCtx.fillStyle = '#1f2937';
+            pcaCtx.fillRect(0, 0, w, h);
+            const snapshot = critters.slice();
+            if (snapshot.length < 3) {
+                pcaCtx.fillStyle = '#9ca3af';
+                pcaCtx.font = '18px Inter, sans-serif';
+                pcaCtx.textAlign = 'center';
+                pcaCtx.fillText('Need at least 3 living critters to build a genetic map.', w / 2, h / 2);
+                return;
+            }
+            const points = computePCA(snapshot.map(extractFeatureVector));
+            const pad = 55;
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            points.forEach(pt => {
+                minX = Math.min(minX, pt.x); maxX = Math.max(maxX, pt.x);
+                minY = Math.min(minY, pt.y); maxY = Math.max(maxY, pt.y);
+            });
+            const spanX = (maxX - minX) || 1, spanY = (maxY - minY) || 1;
+            points.forEach((pt, i) => {
+                const x = pad + (pt.x - minX) / spanX * (w - 2 * pad);
+                const y = pad + (pt.y - minY) / spanY * (h - 2 * pad);
+                pcaCtx.beginPath();
+                pcaCtx.arc(x, y, 5, 0, Math.PI * 2);
+                pcaCtx.fillStyle = pcaColorFor(snapshot[i]);
+                pcaCtx.globalAlpha = 0.85;
+                pcaCtx.fill();
+                pcaCtx.globalAlpha = 1;
+                pcaCtx.strokeStyle = 'rgba(0,0,0,0.4)';
+                pcaCtx.lineWidth = 1;
+                pcaCtx.stroke();
+            });
+            // Axis hints.
+            pcaCtx.fillStyle = 'rgba(255,255,255,0.4)';
+            pcaCtx.font = '12px Inter, sans-serif';
+            pcaCtx.textAlign = 'right';
+            pcaCtx.fillText('PC1 →', w - 12, h - 12);
+            pcaCtx.save();
+            pcaCtx.translate(16, 16);
+            pcaCtx.rotate(Math.PI / 2);
+            pcaCtx.textAlign = 'left';
+            pcaCtx.fillText('PC2 →', 0, 0);
+            pcaCtx.restore();
+        }
+
+        function setPaused(p) {
+            isPaused = p;
+            ui.pauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
+            ui.pauseBtn.classList.toggle('bg-gray-600', !isPaused);
+            ui.pauseBtn.classList.toggle('bg-green-600', isPaused);
+        }
+
+        // Builds a simple, viable starter genome. `reproType` picks which
+        // reproductive organ(s) it carries: 'sperm', 'egg', or 'both'.
+        function makeSeedGenome(reproType) {
+            const g = CODON_MAP;
+            const headGene = g.START + g.SEGMENT + g.MOUTH + g.EYES + g.BLUE + g.STOP;
+            const bodyGene = g.START + g.SEGMENT + g.BLUE + g.STOP;
+            const spermGene = g.START + g.SPERM + g.BLUE + g.STOP;
+            const eggGene = g.START + g.OVIPOSITOR + g.BLUE + g.STOP;
+            let repro;
+            if (reproType === 'sperm') repro = spermGene;
+            else if (reproType === 'egg') repro = eggGene;
+            else repro = spermGene + eggGene; // 'both' → hermaphrodite
+            let genome = headGene + bodyGene.repeat(2) + repro;
+            while (genome.length < 1000) genome += getRandomNucleotide();
+            return genome.substring(0, 1000);
+        }
+
+        // Anti-extinction safeguard: below a small threshold, a rare "immigrant"
+        // drifts in so the ecosystem never dies out completely. Natural selection
+        // is untouched above the threshold — this only rescues near-death troughs.
+        function maybeImmigrate() {
+            if (critters.length >= MIN_VIABLE_POPULATION) return;
+            if (Math.random() < IMMIGRATION_RATE_PER_TICK && critters.length < MAX_CRITTERS) {
+                critters.push(new Critter(makeSeedGenome('both'),
+                    getRandom(50, canvas.width - 50), getRandom(50, canvas.height - 50)));
+                totalImmigrants++;
+            }
+        }
+
+        function init() {
+            const uiToggleHeader = document.getElementById('ui-toggle-header');
+            const uiContent = document.getElementById('ui-content');
+            const toggleIcon = document.getElementById('toggle-icon');
+            const plusIconPath = "M12 6v6m0 0v6m0-6h6m-6 0H6";
+            const minusIconPath = "M18 12H6";
+
+            uiToggleHeader.addEventListener('click', () => {
+                uiContent.classList.toggle('collapsed');
+                if (uiContent.classList.contains('collapsed')) {
+                    toggleIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${plusIconPath}"></path>`;
+                } else {
+                    toggleIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${minusIconPath}"></path>`;
+                }
+            });
+
+            ui.mutRateSlider.value = MUTATION_RATE; ui.mutRateValue.textContent = (MUTATION_RATE * 100).toFixed(2) + '%';
+            ui.mutRateSlider.addEventListener('input', (e) => { MUTATION_RATE = parseFloat(e.target.value); ui.mutRateValue.textContent = (MUTATION_RATE * 100).toFixed(2) + '%'; });
+            ui.foodRateSlider.value = FOOD_SPAWN_RATE; ui.foodRateValue.textContent = FOOD_SPAWN_RATE.toFixed(1) + '/s';
+            ui.foodRateSlider.addEventListener('input', (e) => { FOOD_SPAWN_RATE = parseFloat(e.target.value); ui.foodRateValue.textContent = FOOD_SPAWN_RATE.toFixed(1) + '/s'; });
+            ui.injuryRiskSlider.value = INJURY_RISK_MULTIPLIER; ui.injuryRiskValue.textContent = INJURY_RISK_MULTIPLIER.toFixed(1) + 'x';
+            ui.injuryRiskSlider.addEventListener('input', (e) => { INJURY_RISK_MULTIPLIER = parseFloat(e.target.value); ui.injuryRiskValue.textContent = INJURY_RISK_MULTIPLIER.toFixed(1) + 'x'; });
+            ui.simSpeedSlider.value = SIMULATION_SPEED; ui.simSpeedValue.textContent = SIMULATION_SPEED + 'x';
+            ui.simSpeedSlider.addEventListener('input', (e) => { SIMULATION_SPEED = parseInt(e.target.value, 10); ui.simSpeedValue.textContent = SIMULATION_SPEED + 'x'; });
+
+            // Pause controls.
+            ui.pauseBtn.addEventListener('click', () => setPaused(!isPaused));
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Space' && pcaModal.style.display !== 'flex') {
+                    e.preventDefault();
+                    setPaused(!isPaused);
+                }
+            });
+
+            // Genetic Map (PCA) controls.
+            const openPCA = () => {
+                wasPausedBeforePCA = isPaused;
+                setPaused(true); // freeze the population so the map matches what's on screen
+                pcaModal.style.display = 'flex';
+                renderPCA();
+            };
+            const closePCA = () => {
+                pcaModal.style.display = 'none';
+                setPaused(wasPausedBeforePCA);
+            };
+            document.getElementById('view-pca-btn').addEventListener('click', openPCA);
+            document.getElementById('close-pca-btn').addEventListener('click', closePCA);
+            document.querySelectorAll('.pca-color-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    pcaColorMode = btn.dataset.color;
+                    document.querySelectorAll('.pca-color-btn').forEach(b => {
+                        b.classList.toggle('bg-blue-600', b === btn);
+                        b.classList.toggle('bg-gray-600', b !== btn);
+                    });
+                    renderPCA();
+                });
+            });
+
+            for (let i = 0; i < 50; i++) {
+                critters.push(new Critter(makeSeedGenome(i < 25 ? 'sperm' : 'egg'),
+                    getRandom(50, canvas.width - 50), getRandom(50, canvas.height - 50)));
+                totalBirths++;
+            }
+        }
+
+        function animate() {
+            if (!isPaused) {
+                for (let i = 0; i < SIMULATION_SPEED; i++) {
+                    const foodSpawnChancePerTick = (FOOD_SPAWN_RATE / 60);
+                    if (Math.random() < foodSpawnChancePerTick && foodPellets.length < 200) {
+                        foodPellets.push(new FoodPellet());
+                    }
+                    
+                    spermParticles = spermParticles.filter(p => p.update());
+                    eggs = eggs.filter(egg => !egg.update());
+                    
+                    critters = critters.filter(c => !c.isDead);
+                    critters.forEach(c => { c.update(); });
+                    
+                    handlePositionalCorrection();
+                    
+                    critters.forEach(c => { c.updateBodySegments(); });
+
+                    handleInteractions();
+
+                    maybeImmigrate();
+
+                    // Sample population for the live history graph (~every 15 ticks).
+                    if (++historyTick % 15 === 0) {
+                        populationHistory.push(critters.length);
+                        if (populationHistory.length > POP_HISTORY_MAX) populationHistory.shift();
+                    }
+                }
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            foodPellets.forEach(f => f.draw());
+            spermParticles.forEach(p => p.draw());
+            eggs.forEach(egg => egg.draw());
+            critters.forEach(c => { c.draw(); });
+            
+            updateUI();
+            requestAnimationFrame(animate);
+        }
+
+        window.onload = () => { init(); animate(); };
+    </script>
